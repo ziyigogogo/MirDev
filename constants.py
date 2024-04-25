@@ -23,7 +23,6 @@ VARIATION_MAPPER = {
     10: "【九星】"
 }
 
-
 POTIONS = {
     "太阳水",
     "强效太阳水",

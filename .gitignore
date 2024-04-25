@@ -2,5 +2,5 @@
 /.settings/
 /.vscode/
 
-MirServer*
+/MirServer*/
 my_test.py
