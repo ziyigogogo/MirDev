@@ -1,0 +1,6 @@
+/.idea/
+/.settings/
+/.vscode/
+
+MirServer*
+my_test.py
