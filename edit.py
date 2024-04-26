@@ -8,28 +8,28 @@ from file_handler import gom1108_mon_items_handler, gom1108_mon_gen_handler, gom
 
 
 class WorkSpace:
-    def __init__(self, src_dir: Path):
+    def __init__(self, from_dir: Path):
         # 读取目录
-        src_env_dir = src_dir / "Mir200/Envir"
-        src_db_dir = src_dir / "Mud2/DB"
-        self.src_mon_items_dir = src_env_dir / "MonItems"
-        self.src_monster_txt_pth = src_db_dir / "monster.txt"
-        self.src_map_info_pth = src_env_dir / "MapInfo.txt"
-        self.src_mon_gen_pth = src_env_dir / "MonGen.txt"
+        from_env_dir = from_dir / "Mir200/Envir"
+        from_db_dir = from_dir / "Mud2/DB"
+        self.from_mon_items_dir = from_env_dir / "MonItems"
+        self.from_monster_txt_pth = from_db_dir / "monster.txt"
+        self.from_map_info_pth = from_env_dir / "MapInfo.txt"
+        self.from_mon_gen_pth = from_env_dir / "MonGen.txt"
         # 生成目录
-        patch_dir = Path(src_dir.stem)
-        patch_env_dir = patch_dir / "Mir200/Envir"
-        patch_db_dir = patch_dir / "Mud2/DB"
-        self.patch_mon_items_dir = patch_env_dir / "MonItems"
-        self.patch_monster_txt_pth = patch_db_dir / "monster.txt"
-        self.patch_mon_gen_pth = patch_env_dir / r"MonGen.txt"
-        shutil.rmtree(patch_dir, ignore_errors=True)
-        patch_db_dir.mkdir(parents=True)
-        self.patch_mon_items_dir.mkdir(parents=True)
+        to_dir = Path(from_dir.stem)
+        to_env_dir = to_dir / "Mir200/Envir"
+        to_db_dir = to_dir / "Mud2/DB"
+        self.to_mon_items_dir = to_env_dir / "MonItems"
+        self.to_monster_txt_pth = to_db_dir / "monster.txt"
+        self.to_mon_gen_pth = to_env_dir / r"MonGen.txt"
+        shutil.rmtree(to_dir, ignore_errors=True)
+        to_db_dir.mkdir(parents=True)
+        self.to_mon_items_dir.mkdir(parents=True)
 
 
-def lines_writer(lines_to_write: list, dst_pth: Path):
-    with open(dst_pth, "w", encoding="ansi") as file:
+def lines_writer(lines_to_write: list, to_pth: Path):
+    with open(to_pth, "w", encoding="ansi") as file:
         file.writelines((x if x.endswith("\n") else f"{x}\n" for x in lines_to_write))
 
 
@@ -79,42 +79,40 @@ def gen_mon_items(mapper, from_mon_items, to_mon_items):
     for old_name, new_name in mapper.items():
         from_pth = from_mon_items / f"{old_name}.txt"
         to_pth = to_mon_items / f"{new_name}.txt"
-        # TODO: 生成对应爆率文件
-        if from_pth.exists():
+        # TODO: 从template生成对应爆率文件
+        try:
             shutil.copyfile(from_pth, to_pth)
-        else:
-            with open(to_pth, "w", encoding="ansi") as file:
-                pass
+        except FileNotFoundError:
+            to_pth.touch()
             print(f"{from_pth.name} not existed, created an empty file: {to_pth.absolute()}")
 
 
-def gen_mon_gen_txt(map_mapper, mon_mapper, src_mon_gen, patch_mon_gen):
+def gen_mon_gen_txt(mon_mapper, from_mon_gen, to_mon_gen):
     # TODO:根据怪物星级改变怪物名字颜色
-    records = []
-    cur_map = ""
-    for r in gom1108_mon_gen_handler(src_mon_gen):
-        tmp = map_mapper.get(r["code"], r["code"])
-        if cur_map != tmp:
-            cur_map = tmp
-            records.append(f";{cur_map}")
-        data = [r["code"], r["x"], r["y"], mon_mapper.get(r["mon"], r["mon"]), r["scope"], r["count"], r["interval"]]
-        records.append(" ".join(map(str, data)))
-    lines_writer(records, patch_mon_gen)
+    records = [";地图代码 x y 怪物名称 范围 数量 时间"]
+    map_name = None
+    for r in gom1108_mon_gen_handler(from_mon_gen):
+        cur_map = r.pop("map")
+        if map_name != cur_map:
+            records.append(f"\n;{cur_map}" if map_name else f";{cur_map}")
+            map_name = cur_map
+        r["mon"] = mon_mapper.get(r["mon"], r["mon"])
+        records.append(" ".join(map(str, r.values())))
+    lines_writer(records, to_mon_gen)
 
 
 def gen_monster_variation_patch(ws: WorkSpace):
-    monster_variations = get_variant_monsters(ws.src_monster_txt_pth)
+    monster_variations = get_variant_monsters(ws.from_monster_txt_pth)
     mon_mapper, records = gen_mapper_and_records(monster_variations)
-    map_mapper = gom1108_map_info_handler(ws.src_map_info_pth)
 
     # 生成DBE(PARADOX)数据库导入文件monster.txt
-    lines_writer(records, ws.patch_monster_txt_pth)
+    lines_writer(records, ws.to_monster_txt_pth)
 
     # 生成改名后的掉率文件
-    gen_mon_items(mon_mapper, ws.src_mon_items_dir, ws.patch_mon_items_dir)
+    gen_mon_items(mon_mapper, ws.from_mon_items_dir, ws.to_mon_items_dir)
 
     # 生成改名后的MonGen.txt
-    gen_mon_gen_txt(map_mapper, mon_mapper, ws.src_mon_gen_pth, ws.patch_mon_gen_pth)
+    gen_mon_gen_txt(mon_mapper, ws.from_mon_gen_pth, ws.to_mon_gen_pth)
 
 
 if __name__ == "__main__":

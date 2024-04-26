@@ -35,23 +35,25 @@ def gom1108_map_info_handler(pth: Path):
             if sp[0].startswith("["):
                 code, name = re.sub(r"\[(.*?)\].*", r"\1", " ".join(sp)).split(" ")[:2]
                 code_mapper[code] = name
-
         return code_mapper
 
 
-def gom1108_mon_gen_handler(pth: Path) -> list:
+def gom1108_mon_gen_handler(mon_gen_pth: Path, map_info_pth=None) -> list:
     # ;地图代码 x y 怪物名称 范围 数量 时间
-    maps = []
-    code_mapper = gom1108_map_info_handler(Path(r"D:\mir\MirServer-RXDF\Mir200\Envir\MapInfo.txt"))
-    with open(pth, "r") as file:
+    if not map_info_pth:
+        map_info_pth = mon_gen_pth.parent / "MapInfo.txt"
+
+    code_mapper = gom1108_map_info_handler(map_info_pth)
+    records = []
+    with open(mon_gen_pth, "r") as file:
         for sp in lines2splits(file.readlines()):
             match len(sp):
                 case n if n == 7:
                     code, x, y, mon, scope, count, interval = sp[:7]
-                    maps.append(
+                    records.append(
                         {
                             "code": code,
-                            "name": code_mapper[code] if code in code_mapper else "UNKNOWN",
+                            "map": code_mapper.get(code, f"未知地图({code})"),
                             "x": int(x),
                             "y": int(y),
                             "mon": mon,
@@ -62,13 +64,12 @@ def gom1108_mon_gen_handler(pth: Path) -> list:
                     )
                 case _:
                     print(f"error: {' '.join(sp)}")
-    grouped_maps = sorted(maps, key=lambda row: row["code"])
+    grouped_maps = sorted(records, key=lambda r: r["code"])
     return grouped_maps
 
 
 if __name__ == "__main__":
     envir_dir = Path(r"D:\MyPlayground\before\Mir200\Envir")
     mon_items_dir = envir_dir / "MonItems"
-    mon_gen_pth = envir_dir / "MonGen.txt"
 
     # gom1108_mon_gen_handler(mon_gen_pth)
