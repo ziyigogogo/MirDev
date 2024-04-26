@@ -4,7 +4,7 @@ import time
 
 from analyse import get_variant_monsters
 from constants import POTIONS
-from file_handler import gom1108_mon_items_handler, gom1108_mon_gen_handler
+from file_handler import gom1108_mon_items_handler, gom1108_mon_gen_handler, gom1108_map_info_handler
 
 
 class WorkSpace:
@@ -29,7 +29,7 @@ class WorkSpace:
 
 
 def lines_writer(lines_to_write: list, dst_pth: Path):
-    with open(dst_pth, 'w', encoding="ansi") as file:
+    with open(dst_pth, "w", encoding="ansi") as file:
         file.writelines((x if x.endswith("\n") else f"{x}\n" for x in lines_to_write))
 
 
@@ -64,12 +64,12 @@ def gen_mapper_and_records(monsters: dict):
             14~18: speed, hit, walk_spd, walk_step, walk_wait
             19~20: attack_spd, exp
             """
-            payload[6] *= 1.5
-            payload[8] *= 1.3
-            payload[9] *= 1.3
-            payload[10] *= 1.3
-            payload[11] *= 1.3
-            payload[20] *= 1.5
+            payload[6] *= 1.5  # 血量
+            payload[8] *= 1.3  # 物防
+            payload[9] *= 1.3  # 魔防
+            payload[10] *= 1.3  # 攻击下限
+            payload[11] *= 1.3  # 攻击上限
+            payload[20] *= 1.5  # 经验值
 
     return mapper, records
 
@@ -83,28 +83,38 @@ def gen_mon_items(mapper, from_mon_items, to_mon_items):
         if from_pth.exists():
             shutil.copyfile(from_pth, to_pth)
         else:
-            print(f"{from_pth.name} not existed, add mon_items file first!")
+            with open(to_pth, "w", encoding="ansi") as file:
+                pass
+            print(f"{from_pth.name} not existed, created an empty file: {to_pth.absolute()}")
 
 
-def gen_mon_gen_txt(mapper, src_mon_gen, patch_mon_gen):
-    # TODO:按地图code空行分类
+def gen_mon_gen_txt(map_mapper, mon_mapper, src_mon_gen, patch_mon_gen):
     # TODO:根据怪物星级改变怪物名字颜色
     records = []
+    cur_map = ""
     for r in gom1108_mon_gen_handler(src_mon_gen):
-        data = [r["code"], r["x"], r["y"], mapper.get(r["mon"], r["mon"]), r["scope"], r["count"], r["interval"]]
+        tmp = map_mapper.get(r["code"], r["code"])
+        if cur_map != tmp:
+            cur_map = tmp
+            records.append(f";{cur_map}")
+        data = [r["code"], r["x"], r["y"], mon_mapper.get(r["mon"], r["mon"]), r["scope"], r["count"], r["interval"]]
         records.append(" ".join(map(str, data)))
     lines_writer(records, patch_mon_gen)
 
 
 def gen_monster_variation_patch(ws: WorkSpace):
     monster_variations = get_variant_monsters(ws.src_monster_txt_pth)
-    mapper, records = gen_mapper_and_records(monster_variations)
+    mon_mapper, records = gen_mapper_and_records(monster_variations)
+    map_mapper = gom1108_map_info_handler(ws.src_map_info_pth)
+
     # 生成DBE(PARADOX)数据库导入文件monster.txt
     lines_writer(records, ws.patch_monster_txt_pth)
+
     # 生成改名后的掉率文件
-    gen_mon_items(mapper, ws.src_mon_items_dir, ws.patch_mon_items_dir)
+    gen_mon_items(mon_mapper, ws.src_mon_items_dir, ws.patch_mon_items_dir)
+
     # 生成改名后的MonGen.txt
-    gen_mon_gen_txt(mapper, ws.src_mon_gen_pth, ws.patch_mon_gen_pth)
+    gen_mon_gen_txt(map_mapper, mon_mapper, ws.src_mon_gen_pth, ws.patch_mon_gen_pth)
 
 
 if __name__ == "__main__":
